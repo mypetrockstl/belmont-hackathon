@@ -15,3 +15,23 @@ FROM
     DIRECTORY('@POPULARITY')
 WHERE
     RELATIVE_PATH LIKE '%.pdf';
+
+    CREATE OR REPLACE TABLE POPULARITY_chunks AS
+SELECT
+    relative_path,
+    BUILD_SCOPED_FILE_URL(@POPULARITY, relative_path) AS file_url,
+    (
+        relative_path || ':\n'
+        || coalesce('Header 1: ' || c.value['headers']['header_1'] || '\n', '')
+        || coalesce('Header 2: ' || c.value['headers']['header_2'] || '\n', '')
+        || c.value['chunk']
+    ) AS chunk,
+    'English' AS language
+FROM
+    POPULARITY_DOCUMENTS,
+    LATERAL FLATTEN(SNOWFLAKE.CORTEX.SPLIT_TEXT_MARKDOWN_HEADER(
+        EXTRACTED_LAYOUT,
+        OBJECT_CONSTRUCT('#', 'header_1', '##', 'header_2'),
+        2000, -- chunks of 2000 characters
+        300 -- 300 character overlap
+    )) c;
